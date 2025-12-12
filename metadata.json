@@ -1,0 +1,5 @@
+{
+  "name": "Post With Us Production Pipeline Agent",
+  "description": "An AI-powered agent that generates a detailed content pipeline including outlines, social media posts, blog articles, SEO, and image prompts based on a user-provided topic. It orchestrates content creation and allows for optional scheduling.",
+  "requestFramePermissions": []
+}
