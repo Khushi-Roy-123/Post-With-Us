@@ -145,4 +145,4 @@ npm run dev
 *   **AI Models:** Gemini 2.5 Flash (News, Quick Post) & Gemini 3 Pro (Complex Pipeline).
 
 ---
-&copy; 2024 Post With Us.
+
