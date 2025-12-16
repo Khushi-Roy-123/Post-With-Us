@@ -18,9 +18,9 @@ try {
     db = admin.firestore();
     console.log('Firebase Admin Initialized');
 } catch (error) {
-    console.error('Firebase Initialization Error:', error);
-    // Fallback or exit process depending on strictness
-    // For now, allow server to start but db calls will fail
+    console.warn('Firebase Initialization Skipped/Failed (Check .env credentials). DB features will be disabled.');
+    // Do NOT throw error or exit; allow server to run without DB
+    db = undefined as any;
 }
 
 export { db };

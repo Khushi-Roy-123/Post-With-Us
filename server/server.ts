@@ -1,10 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { GoogleGenAI, FunctionDeclaration, Type, GenerateContentResponse } from "@google/genai";
-import fetch from 'node-fetch'; // For mocking image URL or future actual image generation
-import type { NewsArticle } from './types'; // Import NewsArticle type
-import { db } from './firebase';
+// Using global fetch (Node 18+)
+import type { NewsArticle } from './types';
+
+// Fix for missing global fetch type in older TS setups
+declare const fetch: any;
 
 dotenv.config();
 
@@ -12,187 +13,162 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increased limit for image/video uploads
+app.use(express.json({ limit: '50mb' }));
 
-// Connect to MongoDB
-// Connect to MongoDB removed
-// Firebase initialized via import
+// CSP Fix: Explicitly set permissive CSP to avoid default 'none' issues in some environments
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy", "default-src 'self' * 'unsafe-inline' 'unsafe-eval' data: blob:");
+  next();
+});
 
 // Ensure API_KEY is set
 if (!process.env.API_KEY) {
-  console.warn('API_KEY is not set. Gemini API calls will fail.');
+  console.warn('API_KEY is not set. OpenRouter API calls will fail.');
 }
 
-// Function to initialize GoogleGenAI client (to ensure latest API_KEY is used)
-const getGenAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const SITE_URL = "http://localhost:3000"; // Optional: Your app's URL
+const SITE_NAME = "Post-With-Us"; // Optional: Your app's name
 
-// Define the function calling tool for scheduling a post
-const schedulePostFunctionDeclaration: FunctionDeclaration = {
-  name: 'schedule_post',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'Schedules a content post for a specific date and time.',
-    properties: {
-      scheduleTime: {
-        type: Type.STRING,
-        description: 'The exact date and time (ISO 8601 format) to schedule the post.',
-      },
+// IN-MEMORY STORAGE (Replaces Firebase)
+let inMemoryPosts: any[] = [];
+
+// Helper to call OpenRouter
+async function callOpenRouter(model: string, messages: any[], tools?: any[]): Promise<any> {
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.API_KEY}`,
+      "HTTP-Referer": SITE_URL,
+      "X-Title": SITE_NAME,
+      "Content-Type": "application/json"
     },
-    required: ['scheduleTime'],
-  },
-};
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      tools: tools,
+      response_format: tools ? undefined : { type: "json_object" } // Prefer JSON mode if not using tools/standard chat
+    })
+  });
 
-// Mock function to simulate scheduling with validation
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter API Error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
+}
+
+// Mock function to simulate scheduling
 const schedule_post = async (scheduleTime: string) => {
   console.log(`[Tool Call] Mock scheduling post for: ${scheduleTime}`);
-
   const date = new Date(scheduleTime);
 
-  // validation: Invalid Date
   if (isNaN(date.getTime())) {
-    return {
-      status: 'error',
-      message: `Scheduling failed: Invalid date format '${scheduleTime}'.`
-    };
+    return { status: 'error', message: `Scheduling failed: Invalid date format '${scheduleTime}'.` };
   }
 
   const now = new Date();
-  // validation: Past Date
   if (date <= now) {
-    return {
-      status: 'error',
-      message: `Scheduling failed: The time '${date.toLocaleString()}' is in the past. Please choose a future time.`
-    };
+    return { status: 'error', message: `Scheduling failed: '${date.toLocaleString()}' is in the past.` };
   }
 
-  // Simulate external service call delay
+  // Simulate delay
   await new Promise(resolve => setTimeout(resolve, 800));
 
-  // Save to Firebase (if this is called via tool use)
-  try {
-    if (db) {
-      const postRef = db.collection('posts').doc();
-      await postRef.set({
-        title: "AI Generated Post", // Placeholder
-        date: date.toISOString(),
-        platform: 'LinkedIn',
-        status: 'Scheduled',
-        createdAt: new Date().toISOString()
-      });
-    }
-  } catch (e) {
-    console.error("Failed to save scheduled post to DB from tool", e);
-  }
+  // Save to In-Memory Array
+  const newPost = {
+    id: 'auto_' + Date.now(),
+    title: "AI Generated Post",
+    date: date.toISOString(),
+    platform: 'LinkedIn',
+    status: 'Scheduled',
+    createdAt: new Date().toISOString()
+  };
+  inMemoryPosts.push(newPost);
 
   return {
     status: 'success',
-    message: `Post successfully scheduled for ${date.toLocaleString()} (Mock Service & DB Saved).`
+    message: `Post successfully scheduled for ${date.toLocaleString()} (Mock Service & In-Memory Saved).`
   };
 };
 
-// NEW: Get all scheduled posts
-// NEW: Get all scheduled posts (Firebase)
-app.get('/api/posts', async (req, res) => {
-  try {
-    if (!db) return res.json([]);
+// --- ENDPOINTS ---
 
-    const snapshot = await db.collection('posts').orderBy('date', 'asc').get();
-    const posts = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    res.json(posts);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch posts' });
-  }
+// Root Status Route
+app.get('/', (req, res) => {
+  res.send('<h1>Server is running! 🚀</h1><p>API endpoints are at <code>/api/...</code></p>');
 });
 
-// NEW: Update/Delete post endpoints
-// NEW: Update/Delete post endpoints (Firebase)
+app.get('/api/posts', async (req, res) => {
+  // Return sorted posts
+  const sorted = [...inMemoryPosts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  res.json(sorted);
+});
+
 app.put('/api/posts/:id', async (req, res) => {
-  try {
-    if (!db) throw new Error("DB not initialized");
-    await db.collection('posts').doc(req.params.id).update(req.body);
-    const updated = await db.collection('posts').doc(req.params.id).get();
-    res.json({ id: updated.id, ...updated.data() });
-  } catch (e) { res.status(500).json({ error: "Update failed" }); }
+  const idx = inMemoryPosts.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Post not found" });
+
+  inMemoryPosts[idx] = { ...inMemoryPosts[idx], ...req.body };
+  res.json(inMemoryPosts[idx]);
 });
 
 app.delete('/api/posts/:id', async (req, res) => {
-  try {
-    if (!db) throw new Error("DB not initialized");
-    await db.collection('posts').doc(req.params.id).delete();
-    res.json({ message: "Deleted" });
-  } catch (e) { res.status(500).json({ error: "Delete failed" }); }
+  inMemoryPosts = inMemoryPosts.filter(p => p.id !== req.params.id);
+  res.json({ message: "Deleted" });
 });
 
-// NEW: Backend endpoint for searching real-time news
+// NEWS SEARCH (Note: Google Search Grounding is not standard in OpenRouter. 
+// We will attempt a generic prompt approach or return a placeholder if not supported.)
 app.post('/api/search-news', async (req, res) => {
   const { topic } = req.body;
-
-  if (!topic) {
-    return res.status(400).json({ error: 'Topic is required.' });
-  }
+  if (!topic) return res.status(400).json({ error: 'Topic is required.' });
 
   try {
-    const ai = getGenAIClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash", // gemini-2.5-flash is suitable for text tasks with grounding
-      contents: `Current Date: ${new Date().toLocaleDateString()}. Search Google for the latest and most relevant news articles about "${topic}" from the last 24 hours to provide up-to-date real-time context.`,
-      config: {
-        tools: [{ googleSearch: {} }],
+    // Attempting a pseudo-search via LLM knowledge (fallback) since Grounding tool is specific to Google Vertex/AI Studio
+    // Ideally, you would use a separate Search API (Serper, Bing, etc.) here.
+    // For now, we will ask the LLM to recall recent events if possible, or warn.
+    const messages = [
+      {
+        role: "system",
+        content: `You are a news aggregator. Retrieve or simulate the top 5 recent news headlines relevant to the topic. 
+        Format as a JSON list of objects with 'title', 'uri' (use a dummy URL if unknown), and 'snippet'.
+        Disclaimer: If you cannot access real-time internet, generate plausible examples labeled as [Simulated News].`
       },
-    });
+      { role: "user", content: `Topic: ${topic}. Current Date: ${new Date().toLocaleDateString()}` }
+    ];
 
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const newsArticles: NewsArticle[] = [];
+    const data: any = await callOpenRouter("google/gemini-flash-1.5", messages);
+    const content = data.choices[0]?.message?.content;
 
-    if (groundingChunks && Array.isArray(groundingChunks)) {
-      for (const chunk of groundingChunks) {
-        if (chunk.web) {
-          newsArticles.push({
-            title: chunk.web.title || 'No Title',
-            uri: chunk.web.uri || '#',
-            snippet: (chunk.web as any).snippet || 'No snippet available.',
-          });
-        }
+    let newsArticles: NewsArticle[] = [];
+    try {
+      // Try to parse JSON from the content
+      const jsonMatch = content.match(/\[.*\]/s);
+      if (jsonMatch) {
+        newsArticles = JSON.parse(jsonMatch[0]);
+      } else {
+        newsArticles = JSON.parse(content);
       }
+    } catch (e) {
+      console.warn("Failed to parse news JSON", e);
+      // Fallback
+      newsArticles.push({ title: "Could not fetch real-time news", snippet: "Please try again later or check your API configuration.", uri: "#" });
     }
-    // Limit to top 5-7 articles for display
-    res.json({ news: newsArticles.slice(0, 7) });
 
-  } catch (error) {
-    console.error('Error searching news with Gemini API:', error);
-    if (error instanceof Error) {
-      res.status(500).json({ error: `Internal server error: ${error.message}` });
-    } else {
-      res.status(500).json({ error: 'An unknown error occurred with the Gemini API during news search.' });
-    }
+    res.json({ news: newsArticles.slice(0, 7) });
+  } catch (error: any) {
+    console.error('Error searching news:', error);
+    res.status(500).json({ error: `Internal server error: ${error.message}` });
   }
 });
 
-
-// Backend endpoint for generating content
 app.post('/api/generate', async (req, res) => {
-  const { topic, scheduleTime, tone, audience, realtimeNews } = req.body; // Destructure tone, audience, AND realtimeNews
-
-  if (!topic) {
-    return res.status(400).json({ error: 'Topic is required.' });
-  }
+  const { topic, scheduleTime, tone, audience, realtimeNews } = req.body;
+  if (!topic) return res.status(400).json({ error: 'Topic is required.' });
 
   try {
-    const ai = getGenAIClient();
-    const chat = ai.chats.create({
-      model: 'gemini-3-pro-preview', // Using gemini-3-pro-preview for complex tasks and function calling
-      config: {
-        responseMimeType: "application/json", // Ensure JSON output
-        tools: [{ functionDeclarations: [schedulePostFunctionDeclaration] }],
-      },
-    });
-
-    // Construct news context for the prompt
     let newsContext = '';
     if (realtimeNews && realtimeNews.length > 0) {
       newsContext = '\n\n**REFERENCED REAL-TIME NEWS (Source of Truth):**\n';
@@ -202,202 +178,199 @@ app.post('/api/generate', async (req, res) => {
       newsContext += '\nIntegrate these specific news details to make the content timely and relevant.';
     }
 
-    let fullPrompt = `
-      You are a World-Class Content Strategist and Copywriter for top brands.
-      Your goal is to create high-performing, viral social media content that drives engagement.
+    const systemPrompt = `You are a World-Class Content Strategist.
+    Goal: Create viral social media content.
+    Result MUST be valid JSON.
+    
+    JSON Schema:
+    {
+      "hooks": ["string"],
+      "outline": "string",
+      "linkedin": "string",
+      "instagram": { "caption": "string", "hashtags": ["string"] },
+      "blog": "string",
+      "seo_keywords": ["string"],
+      "image_prompt": "string",
+      "scheduled": boolean,
+      "schedulingMessage": "string (optional)"
+    }`;
 
+    const userPrompt = `
       Topic: "${topic}"
       Tone: ${tone}
       Target Audience: ${audience}
-      Current System Date: ${new Date().toLocaleString()}
+      Current Date: ${new Date().toLocaleString()}
       ${newsContext}
 
-      ## INSTRUCTIONS:
-      1. **Viral Hooks**: Generate 3 distinct, attention-grabbing "Hooks" or angles to start the post. These should be scroll-stoppers (e.g., contrarian, question, story-opener).
-      2. **Blog Outline**: Create a structured outline (5-7 points) for a blog post.
-      3. **LinkedIn Post**: Write a professional yet punchy LinkedIn post (active voice, short paragraphs, max 150 words) based on the best hook.
-      4. **Instagram Caption**: Write an engaging caption (max 100 words) with a question for engagement and 5-7 relevant hashtags.
-      5. **Short Blog**: Write a high-quality blog post (300-600 words) referencing the news context.
-      6. **SEO**: Generate 5-10 high-ranking SEO keywords and a click-worthy Title.
-      7. **Image Prompt**: Write a highly detailed, artistic text-to-image prompt. 
-         - Style: Photorealistic, Cinematic, or Modern Vector Art (choose best for topic).
-         - Include lighting, camera angle, and mood details.
-         - *Example*: "A futuristic workspace with holographic displays showing financial data, cinematic lighting, 8k resolution, photorealistic."
-      ${scheduleTime ? `8. Call 'schedule_post' tool with: '${scheduleTime}'.` : ''}
-
-      ## OUTPUT FORMAT (JSON ONLY):
-      {
-        "hooks": ["Hook 1", "Hook 2", "Hook 3"],
-        "outline": "string",
-        "linkedin": "string",
-        "instagram": {
-          "caption": "string",
-          "hashtags": ["string"]
-        },
-        "blog": "string",
-        "seo_keywords": ["string"],
-        "image_prompt": "string",
-        "scheduled": boolean
-      }
+      INSTRUCTIONS:
+      1. Viral Hooks (3 distinct angles)
+      2. Blog Outline (5-7 points)
+      3. LinkedIn Post (Professsional, punchy)
+      4. Instagram Caption (Engaging + hashtags)
+      5. Short Blog (300-600 words)
+      6. SEO Keywords (5-10)
+      7. Image Prompt (Detailed, artistic)
+      ${scheduleTime ? `8. Call 'schedule_post' tool with: '${scheduleTime}' ONLY IF explicitly requested.` : ''}
     `;
 
-    // Send message to Gemini with the full prompt
-    const result = await chat.sendMessage({ message: fullPrompt });
-    const responseText = result.text || '';
+    // Tool Definition for Scheduling
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "schedule_post",
+          description: "Schedules a content post for a specific date and time.",
+          parameters: {
+            type: "object",
+            properties: {
+              scheduleTime: {
+                type: "string",
+                description: "The exact date and time (ISO 8601 format) to schedule the post."
+              }
+            },
+            required: ["scheduleTime"]
+          }
+        }
+      }
+    ];
 
-    // Check for function calls and handle them
+    // First call to the model
+    let messages: any[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ];
+
+    // If scheduling is requested, include the tool. Otherwise, don't, to save tokens/complexity.
+    // Actually, we'll just always provide it if scheduleTime is present in context, 
+    // but the prompt logic handles the trigger.
+    const useTools = !!scheduleTime;
+
+    // Note: 'gemini-pro-1.5' on OpenRouter behaves like OpenAI Chat
+    const completion = await callOpenRouter("google/gemini-pro-1.5", messages, useTools ? tools : undefined) as any;
+
+    let responseMessage = completion.choices[0].message;
     let scheduled = false;
     let schedulingMessage = '';
 
-    const functionCalls = result.functionCalls;
-    if (functionCalls && functionCalls.length > 0) {
-      for (const fc of functionCalls) {
-        if (fc.name === 'schedule_post') {
-          const args = fc.args as any;
+    // Handle Function Call
+    if (responseMessage.tool_calls) {
+      for (const toolCall of responseMessage.tool_calls) {
+        if (toolCall.function.name === 'schedule_post') {
+          const args = JSON.parse(toolCall.function.arguments);
           const scheduleResult = await schedule_post(args.scheduleTime);
           scheduled = scheduleResult.status === 'success';
           schedulingMessage = scheduleResult.message;
 
-          // Send tool response back to Gemini to update context (optional for final output)
-          await chat.sendMessage([
-            {
-              functionResponse: {
-                id: fc.id,
-                name: fc.name,
-                response: { result: scheduleResult },
-              },
-            },
-          ] as any);
+          // Append tool result to messages
+          messages.push(responseMessage);
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            name: toolCall.function.name,
+            content: JSON.stringify(scheduleResult)
+          });
         }
       }
+
+      // Follow-up call to get final JSON
+      const finalCompletion = await callOpenRouter("google/gemini-pro-1.5", messages) as any;
+      responseMessage = finalCompletion.choices[0].message;
     }
 
-    // Parse the JSON output from Gemini
-    let parsedResult;
-    try {
-      parsedResult = JSON.parse(responseText);
-      parsedResult.scheduled = scheduled; // Add scheduling status to the final output
-      // Add the specific message from the tool for frontend display
-      if (schedulingMessage) {
-        parsedResult.schedulingMessage = schedulingMessage;
-      }
-    } catch (e) {
-      console.error('Failed to parse Gemini response as JSON:', responseText, e);
-      return res.status(500).json({ error: 'Failed to parse content from AI. Response was not valid JSON.' });
-    }
+    // Parse JSON
+    let content = responseMessage.content;
+    // Strip markdown code blocks if present
+    content = content.replace(/```json\n?|\n?```/g, '');
+
+    const parsedResult = JSON.parse(content);
+    parsedResult.scheduled = scheduled; // ensure truth
+    if (schedulingMessage) parsedResult.schedulingMessage = schedulingMessage;
 
     res.json(parsedResult);
 
-  } catch (error) {
-    console.error('Error calling Gemini API:', error);
-    if (error instanceof Error) {
-      res.status(500).json({ error: `Internal server error: ${error.message}` });
-    } else {
-      res.status(500).json({ error: 'An unknown error occurred with the Gemini API.' });
-    }
+  } catch (error: any) {
+    console.error('Error in /api/generate:', error);
+    res.status(500).json({ error: `Generation failed: ${error.message}` });
   }
 });
 
-// Mock endpoint for generating an image from a prompt
-app.post('/api/generate-image-from-prompt', async (req, res) => {
-  const { image_prompt } = req.body;
-  if (!image_prompt) {
-    return res.status(400).json({ error: 'Image prompt is required.' });
-  }
-
-  // In a real app, you would integrate with an actual image generation API (e.g., Gemini Image or another service)
-  // For this mock, we'll return a placeholder image based on the prompt.
-  // Using picsum.photos for a random image with dimensions.
-  const width = 800;
-  const height = 600;
-  const seed = Math.floor(Math.random() * 1000); // Use a seed for variety
-  const imageUrl = `https://picsum.photos/${width}/${height}?random=${seed}`;
-
-  res.json({
-    imageUrl: imageUrl,
-    message: 'Image generated (mock) successfully based on the prompt.',
-  });
-});
-
-// New Endpoint: Manual Schedule
-app.post('/api/schedule', async (req, res) => {
-  const { scheduleTime } = req.body;
-  if (!scheduleTime) {
-    return res.status(400).json({ status: 'error', message: 'Schedule time is required.' });
-  }
-
-  // Save to DB via manual endpoint
-  // Save to Firebase via manual endpoint
-  try {
-    const { title, platform, status, contentSnippet } = req.body;
-
-    let newId = 'temp_' + Date.now();
-
-    if (db) {
-      const postRef = db.collection('posts').doc();
-      newId = postRef.id;
-      await postRef.set({
-        title: title || "Scheduled Post",
-        date: scheduleTime,
-        platform: platform || "LinkedIn",
-        status: status || "Scheduled",
-        contentSnippet,
-        createdAt: new Date().toISOString()
-      });
-    }
-
-    const result = await schedule_post(scheduleTime); // Keep mock service call logic
-    res.json({ ...result, id: newId });
-
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ status: 'error', message: 'Database save failed' });
-  }
-});
-
-// NEW: Quick Post Endpoint with Multimodal Support
 app.post('/api/quick-post', async (req, res) => {
   const { content, platform, media } = req.body;
-
   if (!content && (!media || media.length === 0)) {
     return res.status(400).json({ error: 'Content or media is required.' });
   }
 
   try {
-    const ai = getGenAIClient();
-    const parts: any[] = [];
+    const messages: any[] = [
+      {
+        role: "system",
+        content: `You are a social media expert. Write a punchy post for ${platform || 'social media'}. No explanation.`
+      }
+    ];
 
-    // Add text instructions
-    const promptText = `
-      You are a social media expert. Write a punchy, engaging post for ${platform || 'social media'}.
-      ${content ? `Based on this text input: "${content}"` : 'Based on the attached media.'}
-      Keep it appropriate for the platform (e.g., professional for LinkedIn, short for Twitter).
-      Include emojis if appropriate. Do not explain, just return the post text.
-    `;
+    const userContent: any[] = [];
+    if (content) userContent.push({ type: "text", text: content });
 
-    parts.push({ text: promptText });
-
-    // Add media parts if available
     if (media && Array.isArray(media)) {
       media.forEach((m: { data: string, mimeType: string }) => {
-        parts.push({
-          inlineData: {
-            data: m.data,
-            mimeType: m.mimeType
+        userContent.push({
+          type: "image_url",
+          image_url: {
+            url: `data:${m.mimeType};base64,${m.data}`
           }
         });
       });
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ parts }],
-    });
+    messages.push({ role: "user", content: userContent });
 
-    res.json({ post: response.text });
-  } catch (error) {
+    const data = await callOpenRouter("google/gemini-flash-1.5", messages) as any;
+    const postText = data.choices[0]?.message?.content || "Could not generate post.";
+
+    res.json({ post: postText });
+
+  } catch (error: any) {
     console.error('Error generating quick post:', error);
     res.status(500).json({ error: 'Failed to generate quick post.' });
+  }
+});
+
+// Image Gen Mock
+app.post('/api/generate-image-from-prompt', async (req, res) => {
+  const { image_prompt } = req.body;
+  const width = 800;
+  const height = 600;
+  const seed = Math.floor(Math.random() * 1000);
+  const imageUrl = `https://picsum.photos/${width}/${height}?random=${seed}`;
+
+  res.json({
+    imageUrl: imageUrl,
+    message: 'Image generated (mock) successfully.'
+  });
+});
+
+app.post('/api/schedule', async (req, res) => {
+  const { scheduleTime, title, platform, status, contentSnippet } = req.body;
+  if (!scheduleTime) return res.status(400).json({ status: 'error', message: 'Time required.' });
+
+  try {
+    let newId = 'temp_' + Date.now();
+    // Save to In-Memory
+    const newPost = {
+      id: newId,
+      title: title || "Scheduled Post",
+      date: scheduleTime,
+      platform: platform || "LinkedIn",
+      status: status || "Scheduled",
+      contentSnippet,
+      createdAt: new Date().toISOString()
+    };
+    inMemoryPosts.push(newPost);
+
+    const result = await schedule_post(scheduleTime);
+    res.json({ ...result, id: newId });
+  } catch (e) {
+    res.status(500).json({ status: 'error', message: 'Save failed' });
   }
 });
 
