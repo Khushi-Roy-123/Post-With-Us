@@ -34,7 +34,7 @@ const SITE_NAME = "Post-With-Us"; // Optional: Your app's name
 let inMemoryPosts: any[] = [];
 
 // Helper to call OpenRouter
-async function callOpenRouter(model: string, messages: any[], tools?: any[]): Promise<any> {
+async function callOpenRouter(model: string, messages: any[], tools?: any[], jsonMode: boolean = false): Promise<any> {
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
@@ -47,7 +47,7 @@ async function callOpenRouter(model: string, messages: any[], tools?: any[]): Pr
       model: model,
       messages: messages,
       tools: tools,
-      response_format: tools ? undefined : { type: "json_object" } // Prefer JSON mode if not using tools/standard chat
+      response_format: tools ? undefined : (jsonMode ? { type: "json_object" } : undefined)
     })
   });
 
@@ -139,7 +139,7 @@ app.post('/api/search-news', async (req, res) => {
       { role: "user", content: `Topic: ${topic}. Current Date: ${new Date().toLocaleDateString()}` }
     ];
 
-    const data: any = await callOpenRouter("google/gemini-flash-1.5", messages);
+    const data: any = await callOpenRouter("openai/gpt-3.5-turbo", messages, undefined, true);
     const content = data.choices[0]?.message?.content;
 
     let newsArticles: NewsArticle[] = [];
@@ -245,8 +245,8 @@ app.post('/api/generate', async (req, res) => {
     // but the prompt logic handles the trigger.
     const useTools = !!scheduleTime;
 
-    // Note: 'gemini-pro-1.5' on OpenRouter behaves like OpenAI Chat
-    const completion = await callOpenRouter("google/gemini-pro-1.5", messages, useTools ? tools : undefined) as any;
+    // Note: 'openai/gpt-3.5-turbo' on OpenRouter behaves like OpenAI Chat
+    const completion = await callOpenRouter("openai/gpt-3.5-turbo", messages, useTools ? tools : undefined, true) as any;
 
     let responseMessage = completion.choices[0].message;
     let scheduled = false;
@@ -273,7 +273,7 @@ app.post('/api/generate', async (req, res) => {
       }
 
       // Follow-up call to get final JSON
-      const finalCompletion = await callOpenRouter("google/gemini-pro-1.5", messages) as any;
+      const finalCompletion = await callOpenRouter("openai/gpt-3.5-turbo", messages, undefined, true) as any;
       responseMessage = finalCompletion.choices[0].message;
     }
 
@@ -324,8 +324,8 @@ app.post('/api/quick-post', async (req, res) => {
 
     messages.push({ role: "user", content: userContent });
 
-    const data = await callOpenRouter("google/gemini-flash-1.5", messages) as any;
-    const postText = data.choices[0]?.message?.content || "Could not generate post.";
+    const data = await callOpenRouter("openai/gpt-3.5-turbo", messages, undefined, false) as any;
+    const postText = data.choices?.[0]?.message?.content || "Could not generate post.";
 
     res.json({ post: postText });
 
