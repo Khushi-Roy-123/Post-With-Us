@@ -3,7 +3,7 @@ import { Tone, Audience, NewsArticle } from '../types';
 import { NewsDisplay } from './NewsDisplay';
 
 interface HomeViewProps {
-  onGenerate: (topic: string, scheduleTime: string, tone: Tone, audience: Audience) => void;
+  onGenerate: (topic: string, scheduleTime: string, tone: Tone, audience: Audience, autoGenerateImage: boolean) => void;
   onSearchNews: (topic: string) => void;
   initialTopic: string;
   initialScheduleTime: string;
@@ -29,6 +29,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [selectedAudience, setSelectedAudience] = useState<Audience>(initialAudience);
   const [showToneTooltip, setShowToneTooltip] = useState<boolean>(false);
   const [showAudienceTooltip, setShowAudienceTooltip] = useState<boolean>(false);
+  const [autoGenerateImage, setAutoGenerateImage] = useState<boolean>(false);
 
   // Load defaults from Settings
   useEffect(() => {
@@ -50,7 +51,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const handleGenerateContentSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (topicInput.trim()) {
-      onGenerate(topicInput.trim(), scheduleTimeInput.trim(), selectedTone, selectedAudience);
+      if (topicInput.trim()) {
+        onGenerate(topicInput.trim(), scheduleTimeInput.trim(), selectedTone, selectedAudience, autoGenerateImage);
+      }
     }
   };
 
@@ -213,6 +216,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
           </button>
         </form>
+
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="auto-image"
+            checked={autoGenerateImage}
+            onChange={(e) => setAutoGenerateImage(e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="auto-image" className="text-sm font-medium text-gray-700">Auto-generate AI Image (Beta)</label>
+        </div>
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">

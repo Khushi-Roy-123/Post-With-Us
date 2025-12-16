@@ -30,7 +30,7 @@ function App() {
   const [showLandingPage, setShowLandingPage] = useState(true); // New state for landing page
 
   // Feature Navigation State
-  const [activeFeature, setActiveFeature] = useState<Feature>('agent');
+  const [activeFeature, setActiveFeature] = useState<Feature>('quick');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
 
   // AGENT STATE
@@ -94,7 +94,7 @@ function App() {
     }
   }, [displayNotification]);
 
-  const handleGenerateContent = useCallback(async (selectedTopic: string, selectedScheduleTime: string, selectedTone: Tone, selectedAudience: Audience) => {
+  const handleGenerateContent = useCallback(async (selectedTopic: string, selectedScheduleTime: string, selectedTone: Tone, selectedAudience: Audience, autoGenerateImage: boolean) => {
     setTopic(selectedTopic);
     setScheduleTime(selectedScheduleTime);
     setTone(selectedTone);
@@ -153,6 +153,11 @@ function App() {
         displayNotification(data.schedulingMessage, type);
       } else {
         displayNotification('Content pipeline generated successfully!', 'success');
+      }
+
+      // Auto-generate image if requested
+      if (autoGenerateImage && data.image_prompt) {
+        handleGenerateImage(data.image_prompt);
       }
 
     } catch (error) {

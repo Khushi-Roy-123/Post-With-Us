@@ -34,7 +34,7 @@ const SITE_NAME = "Post-With-Us"; // Optional: Your app's name
 let inMemoryPosts: any[] = [];
 
 // Helper to call OpenRouter
-async function callOpenRouter(model: string, messages: any[], tools?: any[], jsonMode: boolean = false): Promise<any> {
+async function callOpenRouter(model: string, messages: any[], tools?: any[], jsonMode: boolean = false, isImageGen: boolean = false): Promise<any> {
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
@@ -47,7 +47,8 @@ async function callOpenRouter(model: string, messages: any[], tools?: any[], jso
       model: model,
       messages: messages,
       tools: tools,
-      response_format: tools ? undefined : (jsonMode ? { type: "json_object" } : undefined)
+      response_format: tools ? undefined : (jsonMode ? { type: "json_object" } : undefined),
+      modalities: isImageGen ? ["image", "text"] : undefined
     })
   });
 
@@ -295,9 +296,9 @@ app.post('/api/generate', async (req, res) => {
 });
 
 app.post('/api/quick-post', async (req, res) => {
-  const { content, platform, media } = req.body;
-  if (!content && (!media || media.length === 0)) {
-    return res.status(400).json({ error: 'Content or media is required.' });
+  const { content, platform, media, documents } = req.body;
+  if (!content && (!media || media.length === 0) && (!documents || documents.length === 0)) {
+    return res.status(400).json({ error: 'Content, media, or documents are required.' });
   }
 
   try {
@@ -310,6 +311,15 @@ app.post('/api/quick-post', async (req, res) => {
 
     const userContent: any[] = [];
     if (content) userContent.push({ type: "text", text: content });
+
+    if (documents && Array.isArray(documents)) {
+      documents.forEach((doc: { name: string, content: string }) => {
+        userContent.push({
+          type: "text",
+          text: `\n[ATTACHED DOCUMENT: ${doc.name}]\n${doc.content}\n[END DOCUMENT]\n`
+        });
+      });
+    }
 
     if (media && Array.isArray(media)) {
       media.forEach((m: { data: string, mimeType: string }) => {
@@ -338,15 +348,47 @@ app.post('/api/quick-post', async (req, res) => {
 // Image Gen Mock
 app.post('/api/generate-image-from-prompt', async (req, res) => {
   const { image_prompt } = req.body;
-  const width = 800;
-  const height = 600;
-  const seed = Math.floor(Math.random() * 1000);
-  const imageUrl = `https://picsum.photos/${width}/${height}?random=${seed}`;
+  if (!image_prompt) return res.status(400).json({ error: 'Image prompt is required.' });
 
-  res.json({
-    imageUrl: imageUrl,
-    message: 'Image generated (mock) successfully.'
-  });
+  try {
+    const messages = [
+      { role: "user", content: `Generate an image for: ${image_prompt}` }
+    ];
+
+    // Call OpenRouter with image generation enabled (using SDXL which is often more accessible)
+    const data = await callOpenRouter("stabilityai/stable-diffusion-xl-base-1.0", messages, undefined, false, true) as any;
+
+    // Extract image URL from content (DALL-E 3 often returns a Markdown image link or direct URL)
+    let content = data.choices?.[0]?.message?.content || "";
+    let imageUrl = content;
+
+    // specific parsing if it comes as markdown ![alt](url)
+    const markdownRegex = /!\[.*?\]\((https?:\/\/.*?)\)/;
+    const match = content.match(markdownRegex);
+    if (match && match[1]) {
+      imageUrl = match[1];
+    } else if (data.data && data.data[0] && data.data[0].url) {
+      // Standard OpenAI format fallback if OpenRouter proxies it that way
+      imageUrl = data.data[0].url;
+    }
+
+    if (!imageUrl) {
+      throw new Error('No image URL found in response');
+    }
+
+    res.json({
+      imageUrl: imageUrl,
+      message: 'Image generated successfully.'
+    });
+
+  } catch (error: any) {
+    console.error('Error generating image:', error);
+    if (error.response) {
+      const text = await error.response.text().catch(() => 'No response body');
+      console.error('OpenRouter Error Body:', text);
+    }
+    res.status(500).json({ error: `Image generation failed: ${error.message}` });
+  }
 });
 
 app.post('/api/schedule', async (req, res) => {

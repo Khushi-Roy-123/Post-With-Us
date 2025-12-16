@@ -5,7 +5,8 @@ type PlatformKey = 'Twitter' | 'LinkedIn' | 'Facebook' | 'Instagram';
 interface MediaFile {
     file: File;
     preview: string;
-    type: 'image' | 'video';
+    type: 'image' | 'video' | 'document';
+    content?: string; // For text-based documents
 }
 
 const PlatformIcons: Record<PlatformKey, React.ReactNode> = {
@@ -40,6 +41,7 @@ export const QuickPostFeature: React.FC = () => {
     const [files, setFiles] = useState<MediaFile[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const docInputRef = useRef<HTMLInputElement>(null);
 
     const fileToBase64 = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -54,18 +56,28 @@ export const QuickPostFeature: React.FC = () => {
         });
     };
 
-    const processFiles = useCallback((selectedFiles: FileList | File[]) => {
+    const processFiles = useCallback(async (selectedFiles: FileList | File[]) => {
         const newFiles: MediaFile[] = [];
-        Array.from(selectedFiles).forEach(file => {
-            if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return;
 
-            const fileUrl = URL.createObjectURL(file);
-            newFiles.push({
-                file,
-                preview: fileUrl,
-                type: file.type.startsWith('video/') ? 'video' : 'image'
-            });
-        });
+        for (const file of Array.from(selectedFiles)) {
+            if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+                const fileUrl = URL.createObjectURL(file);
+                newFiles.push({
+                    file,
+                    preview: fileUrl,
+                    type: file.type.startsWith('video/') ? 'video' : 'image'
+                });
+            } else if (file.name.match(/\.(txt|md|csv|json)$/i)) {
+                // Text based documents
+                const text = await file.text();
+                newFiles.push({
+                    file,
+                    preview: '', // No preview for docs
+                    type: 'document',
+                    content: text
+                });
+            }
+        }
         setFiles(prev => [...prev, ...newFiles]);
     }, []);
 
@@ -91,14 +103,17 @@ export const QuickPostFeature: React.FC = () => {
         if (e.target.files) {
             processFiles(e.target.files);
         }
-        // Reset input so same file can be selected again if needed
+        // Reset input so same file can be selected again
         if (fileInputRef.current) fileInputRef.current.value = '';
+        if (docInputRef.current) docInputRef.current.value = '';
     };
 
     const removeFile = (index: number) => {
         setFiles(prev => {
             const newFiles = [...prev];
-            URL.revokeObjectURL(newFiles[index].preview);
+            if (newFiles[index].preview) {
+                URL.revokeObjectURL(newFiles[index].preview);
+            }
             newFiles.splice(index, 1);
             return newFiles;
         });
@@ -111,11 +126,20 @@ export const QuickPostFeature: React.FC = () => {
         setCopied(false);
 
         try {
-            // Process files to base64
-            const mediaPayload = await Promise.all(files.map(async (mf) => ({
-                data: await fileToBase64(mf.file),
-                mimeType: mf.file.type
-            })));
+            // Process files
+            const mediaPayload = await Promise.all(
+                files.filter(f => f.type !== 'document').map(async (mf) => ({
+                    data: await fileToBase64(mf.file),
+                    mimeType: mf.file.type
+                }))
+            );
+
+            const docPayload = files
+                .filter(f => f.type === 'document')
+                .map(f => ({
+                    name: f.file.name,
+                    content: f.content
+                }));
 
             const response = await fetch('/api/quick-post', {
                 method: 'POST',
@@ -123,7 +147,8 @@ export const QuickPostFeature: React.FC = () => {
                 body: JSON.stringify({
                     content: input,
                     platform: targetPlatform,
-                    media: mediaPayload
+                    media: mediaPayload,
+                    documents: docPayload
                 }),
             });
             const data = await response.json();
@@ -186,8 +211,8 @@ export const QuickPostFeature: React.FC = () => {
                                         type="button"
                                         onClick={() => setPlatform(p)}
                                         className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${platform === p
-                                                ? activePlatformColors[p]
-                                                : `border-gray-100 bg-white text-gray-500 ${platformColors[p]}`
+                                            ? activePlatformColors[p]
+                                            : `border-gray-100 bg-white text-gray-500 ${platformColors[p]}`
                                             }`}
                                     >
                                         <span className="mb-1">{PlatformIcons[p]}</span>
@@ -218,22 +243,39 @@ export const QuickPostFeature: React.FC = () => {
                                     onChange={(e) => setInput(e.target.value)}
                                 />
 
-                                {/* Attach File Button (Inside Textarea area visually) */}
-                                <div className="absolute bottom-3 right-3">
+                                {/* Action Buttons */}
+                                <div className="absolute bottom-3 right-3 flex space-x-2">
                                     <button
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="p-2 text-gray-400 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-full shadow-sm border border-gray-200 transition-colors"
-                                        title="Attach Image or Video"
+                                        className="p-2 text-gray-500 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg shadow-sm border border-gray-200 transition-colors flex items-center space-x-1"
+                                        title="Attach Photo/Video"
                                     >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => docInputRef.current?.click()}
+                                        className="p-2 text-gray-500 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg shadow-sm border border-gray-200 transition-colors flex items-center space-x-1"
+                                        title="Attach Document"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    </button>
+
                                     <input
                                         type="file"
                                         ref={fileInputRef}
                                         className="hidden"
                                         onChange={handleFileInputChange}
                                         accept="image/*,video/*"
+                                        multiple
+                                    />
+                                    <input
+                                        type="file"
+                                        ref={docInputRef}
+                                        className="hidden"
+                                        onChange={handleFileInputChange}
+                                        accept=".txt,.md,.csv,.json"
                                         multiple
                                     />
                                 </div>
@@ -246,6 +288,11 @@ export const QuickPostFeature: React.FC = () => {
                                         <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square">
                                             {file.type === 'video' ? (
                                                 <video src={file.preview} className="w-full h-full object-cover" />
+                                            ) : file.type === 'document' ? (
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 p-2 text-center">
+                                                    <svg className="w-8 h-8 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                                    <span className="text-xs text-gray-600 font-medium break-all line-clamp-2">{file.file.name}</span>
+                                                </div>
                                             ) : (
                                                 <img src={file.preview} alt="preview" className="w-full h-full object-cover" />
                                             )}
@@ -399,7 +446,7 @@ export const QuickPostFeature: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
