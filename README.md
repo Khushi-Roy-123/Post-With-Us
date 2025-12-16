@@ -84,28 +84,6 @@ This project is configured as a **Progressive Web App (PWA)**.
     *   **Mobile (Android):** Open in Chrome -> Tap Menu -> "Install App".
 3.  **Result:** The app will launch in its own standalone window, appearing just like a native application on your device.
 
-## ☁️ Deployment Guide
-
-Since this app has both a Frontend (React) and a Backend (Node/Express), they are best deployed as two separate services, or on a platform that supports both.
-
-### Option 1: Render.com (Easiest for Full Stack)
-1.  Push this code to a GitHub repository.
-2.  Create a **Web Service** on Render connected to your repo.
-3.  **Root Directory:** `server`
-4.  **Build Command:** `npm install && npm run build` (Note: You may need to adjust this to build the frontend assets into the backend's public folder for a unified deploy).
-5.  **Start Command:** `npm start`
-6.  **Environment Variables:** Add `API_KEY`.
-
-### Option 2: Split Deployment (Recommended)
-
-**1. Backend (Server):**
-*   Deploy the `/server` folder to **Railway** or **Render**.
-*   Set your `API_KEY` environment variable there.
-*   Get your deployed Backend URL (e.g., `https://my-api.onrender.com`).
-
-**2. Frontend (Client):**
-*   Deploy the root folder to **Vercel** or **Netlify**.
-*   In `vite.config.ts`, you will need to update the proxy target or use Vercel Rewrites to point `/api` calls to your deployed Backend URL.
 
 ## Setup and Running Locally
 
