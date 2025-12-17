@@ -1,5 +1,7 @@
 import React from 'react';
-
+import { useAuth } from '../contexts/AuthContext';
+import { auth, googleProvider } from '../firebase';
+import { signInWithPopup, signOut } from 'firebase/auth';
 type Feature = 'agent' | 'quick' | 'trending' | 'settings' | 'calendar';
 
 interface SidebarProps {

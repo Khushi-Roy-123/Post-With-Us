@@ -1,15 +1,13 @@
-import { useState, useCallback } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { QuickPostFeature } from './components/QuickPostFeature';
-import { TrendingFeature } from './components/TrendingFeature';
-import { CalendarFeature } from './components/CalendarFeature';
-import { SettingsFeature } from './components/SettingsFeature';
-import { HomeView } from './components/HomeView';
-import { LoadingView } from './components/LoadingView';
-import { ResultsView } from './components/ResultsView';
-import { LandingPage } from './components/LandingPage';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { PipelineResults, Tone, Audience, NewsArticle } from './types';
+import React, { useState, useCallback } from 'react';
+import { Sidebar } from './Sidebar';
+import { QuickPostFeature } from './QuickPostFeature';
+import { TrendingFeature } from './TrendingFeature';
+import { CalendarFeature } from './CalendarFeature';
+import { SettingsFeature } from './SettingsFeature';
+import { HomeView } from './HomeView';
+import { LoadingView } from './LoadingView';
+import { ResultsView } from './ResultsView';
+import { PipelineResults, Tone, Audience, NewsArticle } from '../types';
 
 type AppScreen = 'home' | 'loading' | 'results';
 type LoadingPhase = 'news' | 'content';
@@ -27,15 +25,10 @@ const loadingSteps = {
   ],
 };
 
-function AppContent() {
-  const [showLandingPage, setShowLandingPage] = useState(true);
-  const { currentUser, loading } = useAuth();
-
-  // Feature Navigation State
+const Root = () => {
   const [activeFeature, setActiveFeature] = useState<Feature>('quick');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // AGENT STATE
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('home');
   const [topic, setTopic] = useState<string>('');
   const [scheduleTime, setScheduleTime] = useState<string>('');
@@ -55,7 +48,6 @@ function AppContent() {
     setTimeout(() => setShowNotification(null), 5000);
   }, []);
 
-  // Handler to bridge Trending -> Agent
   const handleDraftFromTrend = useCallback((trendTopic: string) => {
     setTopic(trendTopic);
     setActiveFeature('agent');
@@ -157,7 +149,6 @@ function AppContent() {
         displayNotification('Content pipeline generated successfully!', 'success');
       }
 
-      // Auto-generate image if requested
       if (autoGenerateImage && data.image_prompt) {
         handleGenerateImage(data.image_prompt);
       }
@@ -325,22 +316,6 @@ function AppContent() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 border-t-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (showLandingPage) {
-    return <LandingPage onGetStarted={() => setShowLandingPage(false)} />;
-  }
-
-  if (!currentUser) {
-    return <LandingPage onGetStarted={() => setShowLandingPage(false)} />;
-  }
-
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans relative">
       <Sidebar
@@ -350,7 +325,6 @@ function AppContent() {
         onClose={() => setIsSidebarOpen(false)}
       />
 
-      {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-b border-gray-200 px-4 py-3 flex items-center justify-between z-30 shadow-sm h-16">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center transform -rotate-3">
@@ -364,7 +338,6 @@ function AppContent() {
       </div>
 
       <main className="flex-1 md:ml-64 p-4 md:p-8 pt-20 md:pt-8 overflow-y-auto min-h-screen transition-all duration-300">
-        {/* Global Notifications */}
         {showNotification && (
           <div
             role="alert"
@@ -380,7 +353,6 @@ function AppContent() {
           </div>
         )}
 
-        {/* Global Loading Indicator */}
         {isGlobalLoading && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm transition-opacity duration-300">
             <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center transform scale-100 animate-fade-in">
@@ -398,14 +370,6 @@ function AppContent() {
       </main>
     </div>
   );
-}
+};
 
-function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-}
-
-export default App;
+export default Root;

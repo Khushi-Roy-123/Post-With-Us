@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { LoginModal } from './LoginModal';
 
 interface LandingPageProps {
   onGetStarted: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
-  
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const { currentUser } = useAuth();
+
+  const handleGetStarted = () => {
+    if (currentUser) {
+      onGetStarted();
+    } else {
+      setShowLoginModal(true);
+    }
+  };
+
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
     const element = document.getElementById(id);
@@ -58,7 +70,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                
                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
                  <button
-                   onClick={onGetStarted}
+                   onClick={handleGetStarted}
                    className="w-full sm:w-auto px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-xl shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-1 transition-all duration-200 flex items-center justify-center"
                  >
                    Start Creating for Free
@@ -192,11 +204,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                <p className="text-gray-300 text-lg mb-10 max-w-2xl mx-auto relative z-10">Join thousands of creators who are saving 20+ hours a week with our AI-powered production pipeline.</p>
                
                <button
-                  onClick={onGetStarted}
+                  onClick={handleGetStarted}
                   className="px-10 py-4 bg-white text-gray-900 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors shadow-lg relative z-10"
-               >
+                >
                   Get Started Now
-               </button>
+                </button>
            </div>
         </div>
       </section>
@@ -220,6 +232,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
            <p className="text-sm text-gray-400 mt-4 md:mt-0">&copy; {new Date().getFullYear()} Post With Us Inc.</p>
         </div>
       </footer>
+      
+      <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
     </div>
   );
 };

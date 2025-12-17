@@ -6,28 +6,46 @@ interface TrendingFeatureProps {
 
 export const TrendingFeature: React.FC<TrendingFeatureProps> = ({ onDraftPost }) => {
     const [loading, setLoading] = useState(false);
-    const [trends, setTrends] = useState([
-        { id: 1, topic: "Artificial General Intelligence", category: "Technology", volume: "2.4M posts", growth: "+15%" },
-        { id: 2, topic: "Sustainable Urban Farming", category: "Environment", volume: "850K posts", growth: "+8%" },
-        { id: 3, topic: "Mars Colonization Update", category: "Science", volume: "1.2M posts", growth: "+22%" },
-        { id: 4, topic: "Global Digital Currency", category: "Finance", volume: "3.1M posts", growth: "+5%" },
-        { id: 5, topic: "Retro Tech Nostalgia", category: "Lifestyle", volume: "500K posts", growth: "+40%" },
-        { id: 6, topic: "Quantum Internet", category: "Tech", volume: "900K posts", growth: "+12%" },
-    ]);
+    const [trends, setTrends] = useState<any[]>([]);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchTrends = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch('http://localhost:3001/api/trending-posts');
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const data = await res.json();
+            if (data && data.posts) {
+                // map posts to existing UI shape
+                const mapped = data.posts.map((p: any, i: number) => ({
+                    id: p.id || i,
+                    topic: p.topic || p.title || 'Untitled',
+                    category: p.category || 'Trending',
+                    volume: p.volume || '',
+                    growth: p.growth || '',
+                    articles: p.articles || (p.url ? [{ url: p.url, title: p.topic }] : [])
+                }));
+                setTrends(mapped);
+                if (data.warning) setError(data.warning + (data.diagnosticSnippet ? ` — diagnostic: ${data.diagnosticSnippet}` : ''));
+            } else {
+                setError('No trends returned');
+            }
+        } catch (e: any) {
+            console.error('Failed to fetch trends', e);
+            setError('Failed to fetch trends');
+            // Fallback: keep previous trends or empty
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchTrends();
+    }, []);
 
     const handleRefresh = () => {
-        setLoading(true);
-        // Simulate API Fetch
-        setTimeout(() => {
-            const shuffled = [...trends].sort(() => 0.5 - Math.random());
-            // Mutate growth numbers slightly to look "live"
-            const updated = shuffled.map(t => ({
-                ...t,
-                growth: `+${Math.floor(Math.random() * 50)}%`
-            }));
-            setTrends(updated);
-            setLoading(false);
-        }, 1200);
+        fetchTrends();
     };
 
     const handleDraft = (topic: string) => {
@@ -42,6 +60,11 @@ export const TrendingFeature: React.FC<TrendingFeatureProps> = ({ onDraftPost })
                 <div>
                     <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Trending Now</h2>
                     <p className="text-gray-500">Discover what the world is talking about and join the conversation.</p>
+                    {error && (
+                        <div className="mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-md text-sm">
+                            {error}
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={handleRefresh}
@@ -81,7 +104,17 @@ export const TrendingFeature: React.FC<TrendingFeatureProps> = ({ onDraftPost })
                             <h3 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">
                                 {trend.topic}
                             </h3>
-                            <p className="text-sm text-gray-400 mb-6 flex-1">{trend.volume}</p>
+                            <p className="text-sm text-gray-400 mb-3 flex-1">{trend.volume}</p>
+
+                            {trend.articles && trend.articles.length > 0 && (
+                                <div className="mb-4 text-sm text-gray-500">
+                                    {trend.articles.slice(0, 2).map((a: any, i: number) => (
+                                        <a key={i} href={a.url || a.articleUrl || a.link || '#'} target="_blank" rel="noreferrer" className="block hover:underline">
+                                            {a.title || a.articleTitle || a.titleNoFormatting || a.source || 'Read more'}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
 
                             <button
                                 onClick={() => handleDraft(trend.topic)}
