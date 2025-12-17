@@ -74,16 +74,6 @@ The project is structured into a modern frontend (React + Vite + Tailwind CSS) a
 *   **Defaults:** Set global default Tone and Audience preferences.
 *   **Social Integrations:** Mock interface to connect/disconnect social accounts (LinkedIn, Twitter, etc.).
 
-## 📲 Installing as an App (PWA)
-
-This project is configured as a **Progressive Web App (PWA)**.
-1.  **Deployment:** Once deployed to a live URL (see below).
-2.  **Installation:**
-    *   **Desktop (Chrome/Edge):** Click the "Install" icon in the right side of the URL bar.
-    *   **Mobile (iOS):** Open in Safari -> Tap Share -> "Add to Home Screen".
-    *   **Mobile (Android):** Open in Chrome -> Tap Menu -> "Install App".
-3.  **Result:** The app will launch in its own standalone window, appearing just like a native application on your device.
-
 
 ## Setup and Running Locally
 
