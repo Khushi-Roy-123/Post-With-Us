@@ -128,23 +128,7 @@ export const TrendingFeature: React.FC<TrendingFeatureProps> = ({ onDraftPost })
                 ))}
             </div>
 
-            <div className="mt-12 bg-indigo-900 rounded-2xl p-8 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full opacity-10">
-                    <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 C 20 0 50 0 100 100 Z" fill="white" /></svg>
-                </div>
-                <div className="relative z-10">
-                    <h3 className="text-2xl font-bold text-white mb-2">Don't see your niche?</h3>
-                    <p className="text-indigo-200 mb-6 max-w-lg mx-auto">
-                        Configure your custom tracking keywords to get personalized trend alerts straight to your dashboard.
-                    </p>
-                    <button
-                        onClick={() => alert("Settings feature coming soon! You will be able to add custom keywords here.")}
-                        className="bg-white text-indigo-900 px-6 py-3 rounded-lg font-bold hover:bg-indigo-50 transition-colors"
-                    >
-                        Customize Feed
-                    </button>
-                </div>
-            </div>
+
         </div>
     );
 };

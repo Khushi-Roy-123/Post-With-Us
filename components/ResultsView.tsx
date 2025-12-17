@@ -5,27 +5,23 @@ import { CollapsibleSection } from './CollapsibleSection';
 interface ResultsViewProps {
   topic: string;
   results: PipelineResults;
-  onGenerateImage: (imagePrompt: string) => void;
   onSchedulePost: () => void;
   onBackToHome: () => void;
   onSaveEditedContent: (updatedResults: PipelineResults) => void;
   onNotification?: (message: string, type: 'success' | 'error' | 'info') => void;
-  isGeneratingImage: boolean;
   isScheduling: boolean;
 }
 
 export const ResultsView: React.FC<ResultsViewProps> = ({
   topic,
   results,
-  onGenerateImage,
   onSchedulePost,
   onBackToHome,
   onSaveEditedContent,
   onNotification,
-  isGeneratingImage,
   isScheduling,
 }) => {
-  const [activeTab, setActiveTab] = useState<'hooks' | 'outline' | 'linkedin' | 'instagram' | 'blog' | 'seo' | 'image'>('hooks');
+  const [activeTab, setActiveTab] = useState<'hooks' | 'outline' | 'linkedin' | 'instagram' | 'blog' | 'seo'>('hooks');
 
   // Track editing state per section
   const [editingSections, setEditingSections] = useState<Record<string, boolean>>({});
@@ -267,8 +263,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         case 'hooks':
         case 'outline':
         case 'linkedin':
-        case 'blog':
-        case 'image_prompt': {
+        case 'blog': {
           const currentValue = editableResults[key] as string;
           return (
             <div className="animate-fade-in">
@@ -443,7 +438,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       {/* Tabs - Scrollable on mobile */}
       <div className="-mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex sm:justify-center overflow-x-auto pb-2 gap-2 no-scrollbar scroll-smooth">
-          {['hooks', 'outline', 'linkedin', 'instagram', 'blog', 'seo', 'image'].map((tab) => (
+          {['hooks', 'outline', 'linkedin', 'instagram', 'blog', 'seo'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -478,42 +473,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         {activeTab === 'seo' && <CollapsibleSection title="SEO Strategy" isOpen={true} onToggle={() => { }} forceOpen={true} action={renderSectionAction('seo_keywords')}>
           {renderContent('seo_keywords', editableResults.seo_keywords)}
         </CollapsibleSection>}
-        {activeTab === 'image' && (
-          <CollapsibleSection title="AI Image Prompt" isOpen={true} onToggle={() => { }} forceOpen={true} action={renderSectionAction('image_prompt')}>
-            {renderContent('image_prompt', editableResults.image_prompt)}
-            {editableResults.imageUrl ? (
-              <div className="mt-6">
-                <img src={editableResults.imageUrl} alt="Generated AI Content" className="w-full h-auto rounded-xl shadow-lg mx-auto border border-gray-100" />
-              </div>
-            ) : (
-              <div className="mt-6 flex justify-center">
-                <button
-                  onClick={() => onGenerateImage(editableResults.image_prompt)}
-                  className={`py-3 px-6 rounded-xl shadow-lg transition-all duration-200 font-bold flex items-center
-                      ${isGeneratingImage
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-xl hover:-translate-y-0.5'}`}
-                  disabled={isGeneratingImage}
-                >
-                  {isGeneratingImage ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Creating Image...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                      Generate Image
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </CollapsibleSection>
-        )}
+
       </div>
 
       {(editableResults.scheduled || editableResults.schedulingMessage) && (
@@ -551,11 +511,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         <button
           onClick={handleBackToHomeClick}
           className={`py-4 px-6 rounded-xl shadow-lg transition-all duration-200 font-bold flex items-center justify-center
-             ${isScheduling || isGeneratingImage
+             ${isScheduling
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
               : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}`}
           aria-label="Generate new content"
-          disabled={isScheduling || isGeneratingImage}
+          disabled={isScheduling}
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
           Start New Project

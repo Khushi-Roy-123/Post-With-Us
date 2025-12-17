@@ -23,7 +23,6 @@ const loadingSteps = {
     'Creating Instagram Caption',
     'Writing Blog Article',
     'Optimizing SEO',
-    'Formulating Image Prompt',
   ],
 };
 
@@ -46,7 +45,6 @@ function AppContent() {
   const [currentLoadingStep, setCurrentLoadingStep] = useState<number>(0);
   const [currentLoadingPhase, setCurrentLoadingPhase] = useState<LoadingPhase | null>(null);
   const [showNotification, setShowNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
   const [isScheduling, setIsScheduling] = useState<boolean>(false);
   const [isGlobalLoading, setIsGlobalLoading] = useState<boolean>(false);
 
@@ -157,10 +155,6 @@ function AppContent() {
         displayNotification('Content pipeline generated successfully!', 'success');
       }
 
-      // Auto-generate image if requested
-      if (autoGenerateImage && data.image_prompt) {
-        handleGenerateImage(data.image_prompt);
-      }
 
     } catch (error) {
       console.error('Error generating content:', error);
@@ -168,33 +162,6 @@ function AppContent() {
       setCurrentScreen('home');
     }
   }, [displayNotification, realtimeNews]);
-
-  const handleGenerateImage = useCallback(async (imagePrompt: string) => {
-    setIsGeneratingImage(true);
-    setIsGlobalLoading(true);
-    displayNotification('Generating image...', 'info');
-    try {
-      const response = await fetch('/api/generate-image-from-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_prompt: imagePrompt }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setPipelineResults(prev => prev ? { ...prev, imageUrl: data.imageUrl } : null);
-      displayNotification('Image generated successfully!', 'success');
-    } catch (error) {
-      console.error('Error generating image:', error);
-      displayNotification('Failed to generate image.', 'error');
-    } finally {
-      setIsGeneratingImage(false);
-      setIsGlobalLoading(false);
-    }
-  }, [displayNotification]);
 
   const handleSchedulePost = useCallback(async () => {
     if (!scheduleTime) {
@@ -311,12 +278,10 @@ function AppContent() {
               <ResultsView
                 topic={topic}
                 results={pipelineResults}
-                onGenerateImage={handleGenerateImage}
                 onSchedulePost={handleSchedulePost}
                 onBackToHome={handleBackToHome}
                 onSaveEditedContent={handleSaveEditedContent}
                 onNotification={displayNotification}
-                isGeneratingImage={isGeneratingImage}
                 isScheduling={isScheduling}
               />
             )}

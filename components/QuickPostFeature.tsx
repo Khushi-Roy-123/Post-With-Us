@@ -1,13 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 
 type PlatformKey = 'Twitter' | 'LinkedIn' | 'Facebook' | 'Instagram';
 
-interface MediaFile {
-    file: File;
-    preview: string;
-    type: 'image' | 'video' | 'document';
-    content?: string; // For text-based documents
-}
+
 
 const PlatformIcons: Record<PlatformKey, React.ReactNode> = {
     Twitter: (
@@ -38,108 +33,20 @@ export const QuickPostFeature: React.FC = () => {
     const [generatedPost, setGeneratedPost] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [files, setFiles] = useState<MediaFile[]>([]);
-    const [isDragging, setIsDragging] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const docInputRef = useRef<HTMLInputElement>(null);
-
-    const fileToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => {
-                const result = reader.result as string;
-                const base64 = result.split(',')[1];
-                resolve(base64);
-            };
-            reader.onerror = error => reject(error);
-        });
-    };
-
-    const processFiles = useCallback(async (selectedFiles: FileList | File[]) => {
-        const newFiles: MediaFile[] = [];
-
-        for (const file of Array.from(selectedFiles)) {
-            if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-                const fileUrl = URL.createObjectURL(file);
-                newFiles.push({
-                    file,
-                    preview: fileUrl,
-                    type: file.type.startsWith('video/') ? 'video' : 'image'
-                });
-            } else if (file.name.match(/\.(txt|md|csv|json)$/i)) {
-                // Text based documents
-                const text = await file.text();
-                newFiles.push({
-                    file,
-                    preview: '', // No preview for docs
-                    type: 'document',
-                    content: text
-                });
-            }
-        }
-        setFiles(prev => [...prev, ...newFiles]);
-    }, []);
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files) {
-            processFiles(e.dataTransfer.files);
-        }
-    };
-
-    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            processFiles(e.target.files);
-        }
-        // Reset input so same file can be selected again
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        if (docInputRef.current) docInputRef.current.value = '';
-    };
-
-    const removeFile = (index: number) => {
-        setFiles(prev => {
-            const newFiles = [...prev];
-            if (newFiles[index].preview) {
-                URL.revokeObjectURL(newFiles[index].preview);
-            }
-            newFiles.splice(index, 1);
-            return newFiles;
-        });
-    };
+    const [isEditing, setIsEditing] = useState(false);
+    const [editValue, setEditValue] = useState('');
 
     const generateContent = async (targetPlatform: PlatformKey) => {
-        if (!input.trim() && files.length === 0) return;
+        if (!input.trim()) return;
 
         setIsLoading(true);
         setCopied(false);
 
         try {
-            // Process files
-            const mediaPayload = await Promise.all(
-                files.filter(f => f.type !== 'document').map(async (mf) => ({
-                    data: await fileToBase64(mf.file),
-                    mimeType: mf.file.type
-                }))
-            );
-
-            const docPayload = files
-                .filter(f => f.type === 'document')
-                .map(f => ({
-                    name: f.file.name,
-                    content: f.content
-                }));
+            // Process files - REMOVED since upload feature is gone
+            // Leaving legacy API structure intact with empty arrays if needed
+            const mediaPayload: any[] = [];
+            const docPayload: any[] = [];
 
             const response = await fetch('/api/quick-post', {
                 method: 'POST',
@@ -158,6 +65,7 @@ export const QuickPostFeature: React.FC = () => {
             setGeneratedPost('Error generating post. Please try again.');
         } finally {
             setIsLoading(false);
+            setIsEditing(false); // Reset edit mode on new generation
         }
     };
 
@@ -175,6 +83,20 @@ export const QuickPostFeature: React.FC = () => {
         navigator.clipboard.writeText(generatedPost);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleEdit = () => {
+        setEditValue(generatedPost);
+        setIsEditing(true);
+    };
+
+    const handleSaveEdit = () => {
+        setGeneratedPost(editValue);
+        setIsEditing(false);
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditing(false);
     };
 
     const platformColors: Record<PlatformKey, string> = {
@@ -230,97 +152,28 @@ export const QuickPostFeature: React.FC = () => {
 
                             {/* Drag and Drop Area */}
                             <div
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                className={`relative w-full rounded-xl transition-all duration-200 ${isDragging ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+                                className={`relative w-full rounded-xl transition-all duration-200`}
                             >
                                 <textarea
                                     className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none text-gray-700 placeholder-gray-300 bg-gray-50 focus:bg-white min-h-[140px]"
                                     rows={6}
-                                    placeholder="Paste text here, or drag & drop images/videos..."
+                                    placeholder="Paste text here..."
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                 />
 
                                 {/* Action Buttons */}
-                                <div className="absolute bottom-3 right-3 flex space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="p-2 text-gray-500 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg shadow-sm border border-gray-200 transition-colors flex items-center space-x-1"
-                                        title="Attach Photo/Video"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => docInputRef.current?.click()}
-                                        className="p-2 text-gray-500 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg shadow-sm border border-gray-200 transition-colors flex items-center space-x-1"
-                                        title="Attach Document"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                    </button>
 
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        className="hidden"
-                                        onChange={handleFileInputChange}
-                                        accept="image/*,video/*"
-                                        multiple
-                                    />
-                                    <input
-                                        type="file"
-                                        ref={docInputRef}
-                                        className="hidden"
-                                        onChange={handleFileInputChange}
-                                        accept=".txt,.md,.csv,.json"
-                                        multiple
-                                    />
-                                </div>
                             </div>
 
-                            {/* File Previews */}
-                            {files.length > 0 && (
-                                <div className="mt-4 grid grid-cols-3 gap-3">
-                                    {files.map((file, idx) => (
-                                        <div key={idx} className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square">
-                                            {file.type === 'video' ? (
-                                                <video src={file.preview} className="w-full h-full object-cover" />
-                                            ) : file.type === 'document' ? (
-                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 p-2 text-center">
-                                                    <svg className="w-8 h-8 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                                    <span className="text-xs text-gray-600 font-medium break-all line-clamp-2">{file.file.name}</span>
-                                                </div>
-                                            ) : (
-                                                <img src={file.preview} alt="preview" className="w-full h-full object-cover" />
-                                            )}
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeFile(idx)}
-                                                    className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                                </button>
-                                            </div>
-                                            {file.type === 'video' && (
-                                                <div className="absolute bottom-1 right-1 pointer-events-none">
-                                                    <svg className="w-4 h-4 text-white drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" /></svg>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+
                         </div>
 
                         <button
                             type="submit"
-                            disabled={isLoading || (!input && files.length === 0)}
+                            disabled={isLoading || !input.trim()}
                             className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all duration-300 flex items-center justify-center
-                        ${isLoading || (!input && files.length === 0)
+                        ${isLoading || !input.trim()
                                     ? 'bg-gray-300 cursor-not-allowed shadow-none'
                                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:-translate-y-1'
                                 }
@@ -377,33 +230,72 @@ export const QuickPostFeature: React.FC = () => {
                                 </div>
                             ) : generatedPost ? (
                                 <div className="w-full h-full flex flex-col">
-                                    <div className="prose prose-sm max-w-none flex-1 overflow-y-auto mb-4 custom-scrollbar">
-                                        <p className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap font-medium">{generatedPost}</p>
+                                    <div className="flex-1 overflow-y-auto mb-4 custom-scrollbar">
+                                        {isEditing ? (
+                                            <textarea
+                                                value={editValue}
+                                                onChange={(e) => setEditValue(e.target.value)}
+                                                className="w-full h-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-800 text-lg leading-relaxed font-medium bg-white"
+                                                rows={10}
+                                            />
+                                        ) : (
+                                            <div className="prose prose-sm max-w-none">
+                                                <p className="text-gray-800 text-lg leading-relaxed whitespace-pre-wrap font-medium">{generatedPost}</p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="pt-4 border-t border-gray-100 flex flex-col gap-4">
                                         <div className="flex justify-end items-center space-x-3">
-                                            <span className="text-xs text-gray-400 font-medium">{generatedPost.length} chars</span>
-                                            <button
-                                                onClick={handleCopy}
-                                                className={`text-sm font-bold flex items-center transition-all px-4 py-2 rounded-lg shadow-sm
-                                            ${copied
-                                                        ? 'text-green-700 bg-green-50 border border-green-200'
-                                                        : 'text-gray-600 bg-white border border-gray-200 hover:border-blue-300 hover:text-blue-600 hover:shadow'
-                                                    }`}
-                                            >
-                                                {copied ? (
-                                                    <>
+                                            <span className="text-xs text-gray-400 font-medium">{isEditing ? editValue.length : generatedPost.length} chars</span>
+
+                                            {isEditing ? (
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={handleCancelEdit}
+                                                        className="px-3 py-1.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSaveEdit}
+                                                        className="px-3 py-1.5 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm flex items-center"
+                                                    >
                                                         <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                                                        Copied!
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                                                        Copy Text
-                                                    </>
-                                                )}
-                                            </button>
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={handleEdit}
+                                                        className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:text-blue-600 hover:shadow transition-all flex items-center"
+                                                    >
+                                                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCopy}
+                                                        className={`text-sm font-bold flex items-center transition-all px-4 py-2 rounded-lg shadow-sm
+                                                ${copied
+                                                                ? 'text-green-700 bg-green-50 border border-green-200'
+                                                                : 'text-gray-600 bg-white border border-gray-200 hover:border-blue-300 hover:text-blue-600 hover:shadow'
+                                                            }`}
+                                                    >
+                                                        {copied ? (
+                                                            <>
+                                                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                                                Copied!
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                                                Copy Text
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Regenerate & Repurpose Controls */}

@@ -386,7 +386,6 @@ app.post('/api/generate', async (req, res) => {
       "instagram": { "caption": "string", "hashtags": ["string"] },
       "blog": "string",
       "seo_keywords": ["string"],
-      "image_prompt": "string",
       "scheduled": boolean,
       "schedulingMessage": "string (optional)"
     }`;
@@ -405,8 +404,7 @@ app.post('/api/generate', async (req, res) => {
       4. Instagram Caption (Engaging + hashtags)
       5. Short Blog (300-600 words)
       6. SEO Keywords (5-10)
-      7. Image Prompt (Detailed, artistic)
-      ${scheduleTime ? `8. Call 'schedule_post' tool with: '${scheduleTime}' ONLY IF explicitly requested.` : ''}
+      ${scheduleTime ? `7. Call 'schedule_post' tool with: '${scheduleTime}' ONLY IF explicitly requested.` : ''}
     `;
 
     // Tool Definition for Scheduling
@@ -540,51 +538,7 @@ app.post('/api/quick-post', async (req, res) => {
   }
 });
 
-// Image Gen Mock
-app.post('/api/generate-image-from-prompt', async (req, res) => {
-  const { image_prompt } = req.body;
-  if (!image_prompt) return res.status(400).json({ error: 'Image prompt is required.' });
 
-  try {
-    const messages = [
-      { role: "user", content: `Generate an image for: ${image_prompt}` }
-    ];
-
-    // Call OpenRouter with image generation enabled (using SDXL which is often more accessible)
-    const data = await callOpenRouter("stabilityai/stable-diffusion-xl-base-1.0", messages, undefined, false, true) as any;
-
-    // Extract image URL from content (DALL-E 3 often returns a Markdown image link or direct URL)
-    let content = data.choices?.[0]?.message?.content || "";
-    let imageUrl = content;
-
-    // specific parsing if it comes as markdown ![alt](url)
-    const markdownRegex = /!\[.*?\]\((https?:\/\/.*?)\)/;
-    const match = content.match(markdownRegex);
-    if (match && match[1]) {
-      imageUrl = match[1];
-    } else if (data.data && data.data[0] && data.data[0].url) {
-      // Standard OpenAI format fallback if OpenRouter proxies it that way
-      imageUrl = data.data[0].url;
-    }
-
-    if (!imageUrl) {
-      throw new Error('No image URL found in response');
-    }
-
-    res.json({
-      imageUrl: imageUrl,
-      message: 'Image generated successfully.'
-    });
-
-  } catch (error: any) {
-    console.error('Error generating image:', error);
-    if (error.response) {
-      const text = await error.response.text().catch(() => 'No response body');
-      console.error('OpenRouter Error Body:', text);
-    }
-    res.status(500).json({ error: `Image generation failed: ${error.message}` });
-  }
-});
 
 app.post('/api/schedule', async (req: express.Request, res: express.Response) => {
   const { scheduleTime, title, platform, status, contentSnippet } = (req.body as any);

@@ -12,10 +12,8 @@ export interface PipelineResults {
   instagram: InstagramContent;
   blog: string;
   seo_keywords: string[];
-  image_prompt: string;
   scheduled?: boolean; // Optional: indicates if the post was scheduled
   schedulingMessage?: string; // Optional: detailed feedback from scheduling tool
-  imageUrl?: string; // Optional: for generated image URL
 }
 
 export interface LoadingStep {

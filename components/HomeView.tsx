@@ -1,27 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Tone, Audience, NewsArticle } from '../types';
-import { NewsDisplay } from './NewsDisplay';
+import { Tone, Audience } from '../types';
+
 
 interface HomeViewProps {
-  onGenerate: (topic: string, scheduleTime: string, tone: Tone, audience: Audience, autoGenerateImage: boolean) => void;
-  onSearchNews: (topic: string) => void;
+  onGenerate: (topic: string, scheduleTime: string, tone: Tone, audience: Audience) => void;
+
   initialTopic: string;
   initialScheduleTime: string;
   initialTone: Tone;
   initialAudience: Audience;
-  realtimeNews: NewsArticle[] | null;
-  isLoadingNews: boolean;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onGenerate,
-  onSearchNews,
+
   initialTopic,
   initialScheduleTime,
   initialTone,
   initialAudience,
-  realtimeNews,
-  isLoadingNews,
 }) => {
   const [topicInput, setTopicInput] = useState<string>(initialTopic);
   const [scheduleTimeInput, setScheduleTimeInput] = useState<string>(initialScheduleTime);
@@ -29,7 +25,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [selectedAudience, setSelectedAudience] = useState<Audience>(initialAudience);
   const [showToneTooltip, setShowToneTooltip] = useState<boolean>(false);
   const [showAudienceTooltip, setShowAudienceTooltip] = useState<boolean>(false);
-  const [autoGenerateImage, setAutoGenerateImage] = useState<boolean>(false);
+
 
   // Load defaults from Settings
   useEffect(() => {
@@ -41,18 +37,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   }, [initialTone, initialAudience]);
 
-  const handleSearchNewsSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (topicInput.trim()) {
-      onSearchNews(topicInput.trim());
-    }
-  };
+
 
   const handleGenerateContentSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (topicInput.trim()) {
       if (topicInput.trim()) {
-        onGenerate(topicInput.trim(), scheduleTimeInput.trim(), selectedTone, selectedAudience, autoGenerateImage);
+        onGenerate(topicInput.trim(), scheduleTimeInput.trim(), selectedTone, selectedAudience);
       }
     }
   };
@@ -60,12 +51,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const isFormValid = topicInput.trim().length > 0;
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
-      {/* Left Panel: Inputs and Controls */}
+    <div className="max-w-3xl mx-auto">
+      {/* Content Configuration Panel */}
       <div className="flex flex-col space-y-5 bg-gray-50 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 border-b border-gray-200 pb-3">Content Configuration</h2>
 
-        <form onSubmit={handleSearchNewsSubmit} className="space-y-5">
+        <div className="space-y-5">
           <div className="relative z-10 group">
             <input
               type="text"
@@ -198,71 +189,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </label>
           </div>
 
+
+
+
+
+
+
           <button
-            type="submit"
-            className="w-full bg-indigo-600 text-white py-3.5 rounded-xl shadow-md hover:bg-indigo-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 font-bold text-lg flex items-center justify-center transform active:scale-[0.98]"
-            disabled={!isFormValid || isLoadingNews}
-          >
-            {isLoadingNews ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Searching News...
-              </>
-            ) : (
-              'Search Real-time News'
-            )}
-          </button>
-        </form>
-
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="auto-image"
-            checked={autoGenerateImage}
-            onChange={(e) => setAutoGenerateImage(e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-          />
-          <label htmlFor="auto-image" className="text-sm font-medium text-gray-700">Auto-generate AI Image (Beta)</label>
-        </div>
-
-        <div className="relative py-2">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-gray-50 text-gray-400">Step 2</span>
-          </div>
-        </div>
-
-        <button
-          onClick={handleGenerateContentSubmit}
-          className={`w-full py-3.5 rounded-xl shadow-lg transition-all duration-200 font-bold text-xl transform active:scale-[0.98]
+            onClick={handleGenerateContentSubmit}
+            className={`w-full py-3.5 rounded-xl shadow-lg transition-all duration-200 font-bold text-xl transform active:scale-[0.98]
             ${isFormValid
-              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'}
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'}
           `}
-          disabled={!isFormValid}
-        >
-          Generate Pipeline
-        </button>
-        {(!realtimeNews || realtimeNews.length === 0) && isFormValid && !isLoadingNews && (
-          <p className="text-sm text-gray-500 text-center animate-pulse">
-            News will be skipped if not searched.
-          </p>
-        )}
-      </div>
+            disabled={!isFormValid}
+          >
+            Generate Pipeline
+          </button>
 
-      {/* Right Panel: Real-time News Display */}
-      <div className="flex flex-col space-y-4 bg-gray-50 p-5 sm:p-6 rounded-2xl shadow-sm border border-gray-100 h-full">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 border-b border-gray-200 pb-3 mb-2 flex items-center justify-between">
-          <span>Real-time News</span>
-          <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{realtimeNews ? realtimeNews.length : 0}</span>
-        </h2>
-        <div className="flex-1 overflow-hidden">
-          <NewsDisplay news={realtimeNews} isLoading={isLoadingNews} />
         </div>
       </div>
     </div >
